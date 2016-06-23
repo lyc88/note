@@ -1,0 +1,74 @@
+schema.xml配置文件是用于定义index索引库的结构，有点类似于数据表表的定义。
+
+当我们打开schema.xml配置文件时，也许会被里面密密麻麻的代码所吓倒，其实不必惊慌，里面其实就两个东西filed和fieldType。
+
+1、field–类似于数据表的字段
+
+<fields>
+      <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false" omitNorms="true"  default="df"/>
+   .....//省略
+  <field name="_version_" type="long" indexed="true" stored="true"/><!--此字段为最好不要删除哦！非要删除，请把solrconfig.xml中的updateLog注释，但不建议这样-->
+</fields>
+
+属性介绍：
+（1）、name：字段名称
+（2）、type：字段类型（此处type不是java类型，而是下面定义的fieldType）
+（3）、indexed：是否索引？true--solr会对这个字段进行索引，只有经过索引的字段才能被搜索、排序等；false--不索引
+（4）、stored：是否存储？true--存储，当我们需要在页面显示此字段时，应设为true，否则false。
+（5）、required：是否必须？true--此字段为必需，如果此字段的内容为空，会报异常；false--不是必需
+（6）、multiValued：此字段是否可以保存多个值？
+（7）、omitNorms：是否对此字段进行解析？有时候我们想通过某个字段的完全匹配来查询信息，那么设置 indexed="true"、omitNorms="true"。
+（8）、default：设置默认值
+
+2、fieldType–字段类型
+
+<types>
+<fieldType name="string" class="solr.StrField" sortMissingLast="true" />
+.....//省略
+<fieldType name="text_general" positionIncrementGap="100">
+        <analyzer type="index">
+                    <tokenizer/>
+                    <filter ignoreCase="true" words="stopwords.txt" enablePositionIncrements="true" />
+                     <filter/>
+        </analyzer>
+        <analyzer type="query">
+              <tokenizer/>
+              <filter ignoreCase="true" words="stopwords.txt" enablePositionIncrements="true" />
+               <filter synonyms="synonyms.txt" ignoreCase="true" expand="true"/>
+                <filter/>
+         </analyzer>
+ </fieldType>
+</types>
+
+属性说明：
+（1）、name：类型名称，<field>中的type引用的就是这个name
+（2）、class：solr自定义的类型
+（3）、<analyzer type="index">定义建立索引时使用的分词器及过滤器
+（4）、<analyzer type="query">定义搜索时所使用的分词器及过滤器
+（5）、 <tokenizer/>定义分词器
+（6）、<filter/>定义过滤器
+
+3、uniqueKey
+
+<uniqueKey>id</uniqueKey>
+类似于数据表数据的id，solr索引库中最好定义一个用于标示document唯一性的字段，此字段主要用于删除document。
+
+4、<copyField/>
+
+<copyField source=”cat” dest=”text”/>
+实际项目中为了方便查询，我们会把多个需要查询的字段合并到一个字段里，方便查询。
+
+举例：
+
+        产品搜索，关键词不应该只匹配产品标题，还应该匹配产品关键词及产品简介等，那么在建立索引库时，可以把标题、产品关键词、简介放到一个叫text的字段中，搜索时直接搜text字段。
+
+<fields>
+     <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+     <field name="title" type="text_general" indexed="true" stored="true"/>
+     <field name="keywords" type="text_general" indexed="true" stored="true" omitNorms="true"/>
+     <field name="description" type="string" indexed="true" stored="true" multiValued="true"/>
+</fields>
+
+<copyField source="title" dest="text"/>
+<copyField source="keywords" dest="text"/>
+<copyField source="description" dest="text"/>
