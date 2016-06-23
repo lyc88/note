@@ -1,0 +1,122 @@
+对于solr4.x的每个core有两个很重要的配置文件：solrconfig.xml和schema.xml，下面我们来了解solrconfig.xml配置文件。
+
+具体很详细的内容请细读solrcofig.xml配置文件中的英文说明。
+
+1、
+
+“solr.”--代表solr home，即core所在的目录，如：/example/solr/collection1
+
+2、
+
+<luceneMatchVersion>LUCENE_42</luceneMatchVersion>
+
+告诉solr底层使用的是lucene4.2
+
+3、
+
+<lib dir="../../../contrib/extraction/lib" regex=".*.jar" />
+
+solr引用的jar包，以“solr.”为基准，当dir对应的目录不存在时，solr会忽略此<lib>
+
+4、
+
+<dataDir>${solr.data.dir:}</dataDir>
+
+配置data目录的存放位置，data目录中存放了index和log文件。默认为solr home下面的data文件夹
+
+5、
+
+<lockType>${solr.lock.type:native}</lockType>
+设置索引库的锁方式，主要有三种：
+（1）、single：适用于只读的索引库，即索引库是定死的，不会再更改
+（2）、native：使用本地操作系统的文件锁方式，不能用于多个solr服务共用同一个索引库。Solr3.6 及后期版本使用的默认锁机制。
+（3）、simple：使用简单的文件锁机制
+
+6、更新处理器
+
+<updateLog>
+ <str name="dir">${solr.ulog.dir:}</str>
+ </updateLog>
+设置索引库更新日志，默认路径为solr home下面的data/tlog。随着索引库的频繁更新，tlog文件会越来越大，所以建议提交索引时采用硬提交方式<autoCommit>，即批量提交。
+
+<autoCommit>
+ <maxTime>15000</maxTime>
+ <maxDocs>10000</maxDocs>
+ <openSearcher>false</openSearcher>
+ </autoCommit>
+自动硬提交方式:
+maxTime：设置多长时间提交一次
+maxDocs：设置达到多少文档提交一次
+openSearcher：文档提交后是否开启新的searcher，如果false，文档只是提交到index索引库，搜索结果中搜不到此次提交的文档；如果true，既提交到index索引库，也能在搜索结果中搜到此次提交的内容。
+
+7、
+
+<maxBooleanClauses>1024</maxBooleanClauses>
+
+设置boolean 查询中，最大条件数。在范围搜索或者前缀搜索时，会产生大量的 boolean 条件，如果条件数达到这个数值时，将抛出异常，限制这个条件数，可以防止条件过多查询等待时间过长。
+
+8、solr查询缓存机制
+
+为了提升查询效率，solr提供了很多方法。 缓存在 Solr 中充当了一个非常重要的角色，Solr 中主要有这三种缓存：
+
+<filterCache class="solr.FastLRUCache" size="512" initialSize="512" autowarmCount="0"/>
+
+<queryResultCache class="solr.LRUCache" size="512" initialSize="512" autowarmCount="0"/>
+
+<documentCache class="solr.LRUCache" size="512" initialSize="512" autowarmCount="0"/>
+
+<queryResultMaxDocsCached>200</queryResultMaxDocsCached>
+
+<maxWarmingSearchers>2</maxWarmingSearchers>
+Filter cache（过滤器缓存），用于保存过滤器（fq 参数）和层面搜索的结果
+Document cache（文档缓存），用于保存 lucene 文档存储的字段
+Query result（查询缓存），用于保存查询的结果
+
+还有第四种缓存，lucene 内部的缓存，不过该缓存外部无法控制到。
+通过这 3 种缓存，可以对 solr 的搜索实例进行调优。调整这些缓存，需要根据索引库中文档的数量，每次查询结果的条数等。
+在调整参数前，需要事先得到 solr 示例中的以下信息：
+
+    索引中文档的数量
+    每秒钟搜索的次数
+    过滤器的数量
+    一次查询返回最大的文档数量
+    不同查询和不同排序的个数
+
+这些数量可以在 solr admin 页面的日志模块找到。假设以上的值分别为：
+
+    索引中文档的数量：1000000
+    每秒钟搜索的次数：100
+    过滤器的数量：200
+    一次查询返回最大的文档数量：100
+    不同查询和不同排序的个数：500
+
+然后可以开始修改 solrconfig.xml 中缓存的配置了，第一个是过滤器缓存：
+1
+	
+<filterCache class="solr.FastLRUCache" size="200" initialSize="200"  autowarmCount="100"/>
+
+第二个是查询结果缓存：
+1
+	
+<queryResultCache class="solr.FastLRUCache" size="500" initialSize="500" autowarmCount="250"/>
+
+第三个是文档缓存：
+1
+	
+<documentCache class="solr.FastLRUCache" size="11000" initialSize="11000" />
+
+这几个配置是基于以上的几个假设的值进行调优的
+
+9、solr请求处理器
+
+为了提供了类似webservice的功能，可以通过http请求solr搜索。
+
+<requestHandler name="/select" class="solr.SearchHandler">
+    <!-- 设置默认的参数，但这些参数的值可以被请求地址中的参数所替代-->
+    <lst name="defaults">
+         <str name="echoParams">explicit</str>
+        <int name="rows">10</int><!--显示数量-->
+       <str name="wt">json</str><!--显示格式-->
+        <str name="df">text</str><!--默认搜索字段-->
+    </lst>
+</requestHandler>
